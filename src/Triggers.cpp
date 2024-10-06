@@ -36,6 +36,8 @@ namespace Triggers
 			RE::FormID formid;
 		};
 
+		bool invert = false;
+
 	private:
 		bool eval_Hand(RE::MagicSystem::CastingSource source) const
 		{
@@ -89,8 +91,8 @@ namespace Triggers
 		bool eval_WeaponHasKwd(RE::TESObjectWEAP* weap) const { return weap && weap->HasKeywordID(formid); }
 
 	public:
-		Condition(const std::string& filename, const std::string& type_name, const Json::Value& val) :
-			type(JsonUtils::string2enum<Type>(type_name))
+		Condition(const std::string& filename, const std::string& type_name, const Json::Value& val, bool invertFlag = false) :
+			type(JsonUtils::string2enum<Type>(type_name)), invert(invertFlag)
 		{
 			switch (type) {
 				break;
@@ -119,40 +121,57 @@ namespace Triggers
 
 		bool eval(Data* data) const
 		{
+			bool valid = false;
+
 			switch (type) {
 			case Type::WeaponBaseIsFormID:
-				return eval_WeaponBaseIsFormID(data->weap);
+				valid = eval_WeaponBaseIsFormID(data->weap);
+				break;
 			case Type::WeaponHasKwd:
-				return eval_WeaponHasKwd(data->weap);
+				valid = eval_WeaponHasKwd(data->weap);
+				break;
 			case Type::CasterIsFormID:
-				return eval_CasterIsFormID(data->shooter);
+				valid = eval_CasterIsFormID(data->shooter);
+				break;
 			case Type::CasterBaseIsFormID:
-				return eval_CasterBaseIsFormID(data->shooter);
+				valid = eval_CasterBaseIsFormID(data->shooter);
+				break;
 			case Type::CasterHasKwd:
-				return eval_CasterHasKwd(data->shooter);
+				valid = eval_CasterHasKwd(data->shooter);
+				break;
 			case Type::ProjBaseIsFormID:
-				return eval_BaseIsFormID(data->bproj);
+				valid = eval_BaseIsFormID(data->bproj);
+				break;
 			case Type::SpellIsFormID:
-				return eval_SpellIsFormID(data->spel);
+				valid = eval_SpellIsFormID(data->spel);
+				break;
 			case Type::SpellHasKwd:
-				return eval_SpellHasKwd(data->spel);
+				valid = eval_SpellHasKwd(data->spel);
+				break;
 			case Type::EffectIsFormID:
-				return eval_EffectIsFormID(data->mgef);
+				valid = eval_EffectIsFormID(data->mgef);
+				break;
 			case Type::EffectHasKwd:
-				return eval_EffectHasKwd(data->mgef);
+				valid = eval_EffectHasKwd(data->mgef);
+				break;
 			case Type::EffectsIsFormID:
-				return eval_EffectsIsFormID(data->spel);
+				valid = eval_EffectsIsFormID(data->spel);
+				break;
 			case Type::EffectsHasKwd:
-				return eval_EffectsHasKwd(data->spel);
+				valid = eval_EffectsHasKwd(data->spel);
+				break;
 			case Type::Hand:
-				return eval_Hand(data->hand);
+				valid = eval_Hand(data->hand);
+				break;
 			default:
 				assert(false);
 				return false;
 			}
+
+			return invert ? !valid : valid;
 		}
 	};
-	static_assert(sizeof(Condition) == 0x8);
+	static_assert(sizeof(Condition) == 0xC);
 
 	struct Trigger
 	{
@@ -180,8 +199,14 @@ namespace Triggers
 		{
 			if (json_trigger.isMember("conditions")) {
 				auto& json_conditions = json_trigger["conditions"];
-				for (const auto& condition : json_conditions.getMemberNames()) {
-					conditions.emplace_back(filename, condition, json_conditions[condition]);
+				for (const auto& condition_obj : json_conditions) {
+					if (condition_obj.isMember("condition")) {
+						std::string condition_type = condition_obj["condition"].asString();
+						bool invert = condition_obj.isMember("invert") ? condition_obj["invert"].asBool() : false;
+
+						// Pass the correct arguments to the Condition constructor
+						conditions.emplace_back(filename, condition_type, condition_obj, invert);
+					}
 				}
 			}
 		}
